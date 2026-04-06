@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+}
+
+group = 'pj.s32657'
+version = '0.0.1-SNAPSHOT'
+description = 'NAI_01'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
