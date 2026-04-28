@@ -50,4 +50,12 @@ public class PrepareDataset {
       testSet.toArray(new Vector[0])
     );
   }
+
+  public SplitObsDataset trainTestSplit(Observation[] dataset, int testCount) {
+    List<Observation> list = new ArrayList<>(Arrays.asList(dataset));
+    Collections.shuffle(list);
+    Observation[] test  = list.subList(0, testCount).toArray(new Observation[0]);
+    Observation[] train = list.subList(testCount, list.size()).toArray(new Observation[0]);
+    return new SplitObsDataset(train, test);
+  }
 }

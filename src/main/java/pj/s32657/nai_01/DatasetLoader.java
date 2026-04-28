@@ -17,8 +17,8 @@ public class DatasetLoader {
     this.source = new FileInputStream(file);
   }
 
-  public Vector[] load() throws IOException {
-    List<Vector> vectors = new ArrayList<>();
+  private List<String[]> readRows() throws IOException {
+    List<String[]> rows = new ArrayList<>();
 
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(source))) {
       reader.readLine(); // skip header
@@ -30,23 +30,43 @@ public class DatasetLoader {
         String[] parts = line.split(",");
         if (parts.length < 2)
           throw new IOException("Invalid CSV format at line " + lineNumber + ": " + line);
-
-        double[] data = new double[parts.length - 1];
-        try {
-          for (int i = 0; i < data.length; i++)
-            data[i] = Double.parseDouble(parts[i]);
-        } catch (NumberFormatException e) {
-          throw new IOException("Invalid numeric value at line " + lineNumber + ": " + line, e);
-        }
-
-        String category = parts[parts.length - 1].trim();
-        if (category.isEmpty())
+        if (parts[parts.length - 1].trim().isEmpty())
           throw new IOException("Missing category at line " + lineNumber + ": " + line);
-
-        vectors.add(new Vector(data, category));
+        rows.add(parts);
       }
     }
 
+    return rows;
+  }
+
+  public Vector[] load() throws IOException {
+    List<Vector> vectors = new ArrayList<>();
+
+    for (String[] parts : readRows()) {
+      double[] data = new double[parts.length - 1];
+      try {
+        for (int i = 0; i < data.length; i++)
+          data[i] = Double.parseDouble(parts[i]);
+      } catch (NumberFormatException e) {
+        throw new IOException("Invalid numeric value: " + Arrays.toString(parts), e);
+      }
+      vectors.add(new Vector(data, parts[parts.length - 1].trim()));
+    }
+
     return vectors.toArray(new Vector[0]);
+  }
+
+  public Observation[] loadObservations() throws IOException {
+    List<Observation> observations = new ArrayList<>();
+
+    for (String[] parts : readRows()) {
+      Observation obs = new Observation(
+          Arrays.copyOf(parts, parts.length - 1),
+          parts[parts.length - 1].trim()
+      );
+      observations.add(obs);
+    }
+
+    return observations.toArray(new Observation[0]);
   }
 }

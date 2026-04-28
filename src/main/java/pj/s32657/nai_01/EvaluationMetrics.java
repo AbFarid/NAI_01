@@ -79,4 +79,44 @@ public class EvaluationMetrics {
     if (precision + recall == 0) return 0;
     return (2 * precision * recall) / (precision + recall);
   }
+
+  public static double measureAccuracy(Observation[] testSet, NaiveBayes nb) {
+    int correct = 0;
+    for (Observation obs : testSet) {
+      var prediction = nb.predict(obs);
+      if (prediction.equals(obs.label)) correct++;
+    }
+    return (double) correct / testSet.length * 100;
+  }
+
+  public static double measure(Observation[] testSet, NaiveBayes nb, String targetClass, MeasureType mt) {
+    int TP = 0, FP = 0, FN = 0;
+    for (Observation obs : testSet) {
+      String predicted = nb.predict(obs);
+      boolean isTarget = obs.label.equals(targetClass);
+      boolean predictedTarget = predicted.equals(targetClass);
+      if (predictedTarget && isTarget) TP++;
+      else if (predictedTarget && !isTarget && mt != MeasureType.Recall) FP++;
+      else if (!predictedTarget && isTarget && mt != MeasureType.Precision) FN++;
+    }
+    double precision = TP + FP == 0 ? 0 : (double) TP / (TP + FP);
+    double recall    = TP + FN == 0 ? 0 : (double) TP / (TP + FN);
+    return switch (mt) {
+      case Precision -> precision;
+      case Recall    -> recall;
+      case FMeasure  -> getFMeasure(precision, recall);
+    };
+  }
+
+  public static double measurePrecision(Observation[] testSet, NaiveBayes nb, String targetClass) {
+    return measure(testSet, nb, targetClass, MeasureType.Precision);
+  }
+
+  public static double measureRecall(Observation[] testSet, NaiveBayes nb, String targetClass) {
+    return measure(testSet, nb, targetClass, MeasureType.Recall);
+  }
+
+  public static double getFMeasure(Observation[] testSet, NaiveBayes nb, String targetClass) {
+    return measure(testSet, nb, targetClass, MeasureType.FMeasure);
+  }
 }

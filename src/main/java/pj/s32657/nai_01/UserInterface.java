@@ -12,6 +12,9 @@ public class UserInterface {
   private SingleLayerNN slnn;
   private SplitDataset slnnSets;
 
+  private NaiveBayes nb;
+  private SplitObsDataset nbDataset;
+
   private final Scanner scanner = new Scanner(System.in);
 
   String RESET    = "\033[0m";
@@ -33,6 +36,7 @@ public class UserInterface {
       System.out.println("\n1. KNN");
       System.out.println("2. Perceptron");
       System.out.println("3. Single-layer Neural Network");
+      System.out.println("4. Naive Bayes");
       System.out.println("0. Exit");
       System.out.print("> ");
 
@@ -40,6 +44,7 @@ public class UserInterface {
         case "1" -> knn();
         case "2" -> perceptron();
         case "3" -> SLNN();
+        case "4" -> naiveBayes();
         case "0" -> { return; }
         default  -> System.out.println("Invalid option.");
       }
@@ -336,7 +341,7 @@ public class UserInterface {
 
     Perceptron[] neurons = new Perceptron[labels.length];
     for (int i = 0; i < labels.length; i++)
-      neurons[i] = new Perceptron(labels[i], Perceptron.randomWeights(23), 0.5, 0.01);
+      neurons[i] = new Perceptron(labels[i], Perceptron.randomWeights(23), 0.25, 0.01);
 
     slnn = new SingleLayerNN(neurons, 0.01, 0);
     LayerTrainResult trainResult = slnn.train(slnnSets, labels, epochs, debug);
@@ -430,4 +435,102 @@ public class UserInterface {
 
     System.out.println("-".repeat(WIDTH));
   }
+
+  private void naiveBayes() {
+    while (true) {
+      System.out.println("\n-- Naive Bayes --");
+      System.out.println("1. Load & train");
+      System.out.println("2. Predict");
+      System.out.println("3. Metrics");
+      System.out.println("4. Toggle smoothing");
+      System.out.println("0. Back");
+      System.out.print("> ");
+
+      switch (scanner.nextLine().trim()) {
+        case "1" -> trainNB();
+        case "2" -> predictNB();
+        case "3" -> metricsNB();
+        case "4" -> setSmoothing();
+        case "0" -> { return; }
+        default  -> System.out.println("Invalid option.");
+      }
+    }
+  }
+
+  private void setSmoothing() {
+    if (nb == null) { System.out.println("Load and train first."); return; }
+    boolean enabled = nb.getSmoothingEnabled();
+    System.out.print("Apply smoothing to all? [" + (enabled ? "y/N" : "Y/n") + "]: ");
+    String input = scanner.nextLine().trim();
+    nb.setSmoothingEnabled(input.isEmpty() ? !enabled : input.equalsIgnoreCase("y"));
+    System.out.println("Smoothing all: " + (nb.getSmoothingEnabled() ? "ON" : "OFF"));
+  }
+
+  private void trainNB() {
+    System.out.print("Path to CSV [default: outGame.csv]: ");
+    String input = scanner.nextLine().trim();
+    String path = input.isEmpty() ? "src/main/resources/outGame.csv" : input;
+
+    Observation[] all;
+    try {
+      all = new DatasetLoader(path).loadObservations();
+    } catch (Exception e) {
+      System.err.println("Error: " + e.getMessage());
+      return;
+    }
+
+    int testCount = promptInt("Rows to reserve for testing [default 2]: ", 2);
+    System.out.print("Apply smoothing to all? [y/N]: ");
+    boolean smoothAll = scanner.nextLine().trim().equalsIgnoreCase("y");
+
+    nbDataset = new PrepareDataset().trainTestSplit(all, testCount);
+
+    nb = new NaiveBayes(nbDataset.train(), smoothAll);
+    System.out.printf(
+        "Trained on %d rows, %d reserved for testing.%n",
+        nbDataset.train().length,
+        nbDataset.test().length
+    );
+  }
+
+  private void predictNB() {
+    if (nb == null) { System.out.println("Load and train first."); return; }
+
+    System.out.print("Enter attribute values separated by commas (outlook, temperature, humidity, windy): ");
+    String[] parts = scanner.nextLine().trim().split(",");
+
+    String smoothed = nb.getSmoothingEnabled() ? "ENABLED" : "DISABLED";
+
+    System.out.println("Predicting (smoothing all " + smoothed + "): " + Arrays.toString(parts));
+
+    var attributes = Arrays.stream(parts).map(String::trim).toArray(String[]::new);
+    Observation obs = new Observation(attributes);
+
+    System.out.println("Predicted: " + GREEN + nb.predict(obs).toUpperCase() + RESET);
+  }
+
+  private void metricsNB() {
+    if (nb == null) {
+      System.out.println("Load and train first.");
+      return;
+    }
+
+    final int WIDTH = 42;
+    System.out.println();
+    System.out.printf("%-6s %8s %8s %8s %8s%n", "CLASS", "Acc", "Prec", "Recall", "F-M");
+    System.out.println("-".repeat(WIDTH));
+
+    for (String label : nb.priors.keySet()) {
+      double acc = EvaluationMetrics.measureAccuracy(nbDataset.test(), nb);
+      double prec = EvaluationMetrics.measurePrecision(nbDataset.test(), nb, label);
+      double rec = EvaluationMetrics.measureRecall(nbDataset.test(), nb, label);
+      double f1 = EvaluationMetrics.getFMeasure(nbDataset.test(), nb, label);
+
+      System.out.printf("%-6s %7.2f%% %8.4f %8.4f %8.4f%n",
+          label.toUpperCase(), acc, prec, rec, f1);
+    }
+
+    System.out.println("-".repeat(WIDTH));
+  }
 }
+
