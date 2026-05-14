@@ -4,6 +4,7 @@ public class Vector {
   double[] data;
   int size;
   String category;
+  String cluster;
 
   Vector(double[] u) {
     this.data = u;

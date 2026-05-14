@@ -1,5 +1,6 @@
 package pj.s32657.nai_01;
 
+import java.awt.Color;
 import java.util.*;
 
 public class UserInterface {
@@ -14,6 +15,8 @@ public class UserInterface {
 
   private NaiveBayes nb;
   private SplitObsDataset nbDataset;
+
+  private KMeans kmeans;
 
   private final Scanner scanner = new Scanner(System.in);
 
@@ -37,6 +40,7 @@ public class UserInterface {
       System.out.println("2. Perceptron");
       System.out.println("3. Single-layer Neural Network");
       System.out.println("4. Naive Bayes");
+      System.out.println("5. K-Means");
       System.out.println("0. Exit");
       System.out.print("> ");
 
@@ -45,6 +49,7 @@ public class UserInterface {
         case "2" -> perceptron();
         case "3" -> SLNN();
         case "4" -> naiveBayes();
+        case "5" -> kMeans();
         case "0" -> { return; }
         default  -> System.out.println("Invalid option.");
       }
@@ -531,6 +536,113 @@ public class UserInterface {
     }
 
     System.out.println("-".repeat(WIDTH));
+  }
+
+  private void kMeans() {
+    while (true) {
+      System.out.println("\n-- K-Means --");
+      System.out.println("1. Train");
+      System.out.println("2. Plot all pairs");
+      System.out.println("3. Stats");
+      System.out.println("0. Back");
+      System.out.print("> ");
+
+      switch (scanner.nextLine().trim()) {
+        case "1" -> trainKMeans();
+        case "2" -> plotAllKMeans();
+        case "3" -> statsKMeans();
+        case "0" -> { return; }
+        default  -> System.out.println("Invalid option.");
+      }
+    }
+  }
+
+  private void trainKMeans() {
+    int k = promptInt("k [default 3]: ", 3);
+    kmeans = new KMeans(k, dataset);
+    kmeans.train();
+  }
+  private void plotAllKMeans() {
+    if (kmeans == null) { System.out.println("Train first."); return; }
+    int n = dataset[0].size;
+    for (int i = 0; i < n; i++)
+      for (int j = i + 1; j < n; j++) {
+        System.out.printf("%nFeatures: %d and %d%n", i, j);
+        plotKMeans(i, j);
+      }
+  }
+
+  private void plotKMeans(int fi0, int fi1) {
+    int width = 60, height = 20;
+
+    double maxX = Arrays.stream(dataset).mapToDouble(v -> v.data[fi0]).max().getAsDouble();
+    double minX = Arrays.stream(dataset).mapToDouble(v -> v.data[fi0]).min().getAsDouble();
+    double maxY = Arrays.stream(dataset).mapToDouble(v -> v.data[fi1]).max().getAsDouble();
+    double minY = Arrays.stream(dataset).mapToDouble(v -> v.data[fi1]).min().getAsDouble();
+    double rangeX = maxX - minX, rangeY = maxY - minY;
+
+    char[][] grid = new char[height][width];
+    String[][] colors = new String[height][width];
+    for (char[] row : grid) Arrays.fill(row, ' ');
+
+    for (Cluster c : kmeans.clusters) {
+      String color = toAnsi(c.color);
+      for (Vector v : c.members) {
+        int col = (int)((v.data[fi0] - minX) / rangeX * (width - 1));
+        int row = height - 1 - (int)((v.data[fi1] - minY) / rangeY * (height - 1));
+        grid[row][col] = '⏺';
+        colors[row][col] = color;
+      }
+      // centroid
+      int col = (int)((c.centroid.data[fi0] - minX) / rangeX * (width - 1));
+      int row = height - 1 - (int)((c.centroid.data[fi1] - minY) / rangeY * (height - 1));
+      grid[row][col] = '☩';
+      colors[row][col] = color;
+    }
+
+    for (int row = 0; row < height; row++) {
+      System.out.print("│");
+      for (int col = 0; col < width; col++) {
+        char c = grid[row][col];
+        String color = colors[row][col];
+        if (c != ' ') System.out.print(color + c + RESET);
+        else System.out.print(' ');
+      }
+      System.out.println();
+    }
+    System.out.println("└" + "─".repeat(width));
+  }
+
+  private String toAnsi(Color c) {
+    return String.format("\033[38;2;%d;%d;%dm", c.getRed(), c.getGreen(), c.getBlue());
+  }
+
+  private void statsKMeans() {
+    if (kmeans == null) { System.out.println("Train first."); return; }
+    System.out.printf("\nWCSS:  %.4f%n", EvaluationMetrics.WCSS(kmeans.clusters));
+    System.out.printf("Misclassified: %.2f%%%n", EvaluationMetrics.clusteringError(kmeans.clusters));
+
+    // map each category to the color of the cluster it's the majority of
+    Map<String, String> categoryColor = new HashMap<>();
+    for (Cluster c : kmeans.clusters) {
+      if (c.members.isEmpty()) continue;
+      String majority = c.members.stream()
+          .collect(java.util.stream.Collectors.groupingBy(v -> v.category, java.util.stream.Collectors.counting()))
+          .entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+      categoryColor.put(majority, toAnsi(c.color));
+    }
+
+    System.out.println();
+    var composition = EvaluationMetrics.clusterComposition(kmeans.clusters);
+    for (var entry : composition.entrySet()) {
+      Cluster c = Arrays.stream(kmeans.clusters).filter(cl -> cl.label.equals(entry.getKey())).findFirst().orElseThrow();
+      System.out.printf("%sCluster %-3s%s |", toAnsi(c.color), entry.getKey(), RESET);
+      for (var cat : entry.getValue().entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).toList()) {
+        String color = categoryColor.getOrDefault(cat.getKey(), RESET);
+        System.out.printf(" %s%s: %d%s", color, cat.getKey(), cat.getValue(), RESET);
+      }
+      System.out.println();
+    }
   }
 }
 

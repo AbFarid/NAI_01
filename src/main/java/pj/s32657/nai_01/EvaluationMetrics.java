@@ -119,4 +119,42 @@ public class EvaluationMetrics {
   public static double getFMeasure(Observation[] testSet, NaiveBayes nb, String targetClass) {
     return measure(testSet, nb, targetClass, MeasureType.FMeasure);
   }
+
+  public static Map<String, Map<String, Long>> clusterComposition(Cluster[] clusters) {
+    Map<String, Map<String, Long>> result = new LinkedHashMap<>();
+    for (Cluster c : clusters) {
+      Map<String, Long> counts = c.members.stream()
+          .collect(java.util.stream.Collectors.groupingBy(v -> v.category, java.util.stream.Collectors.counting()));
+      result.put(c.label, counts);
+    }
+    return result;
+  }
+
+  public static double clusteringError(Cluster[] clusters) {
+    int total = 0, errors = 0;
+    for (Cluster c : clusters) {
+      if (c.members.isEmpty()) continue;
+      Map<String, Long> counts = c.members.stream()
+          .collect(java.util.stream.Collectors.groupingBy(v -> v.category, java.util.stream.Collectors.counting()));
+      long majority = counts.values().stream().mapToLong(Long::longValue).max().getAsLong();
+      errors += c.members.size() - majority;
+      total  += c.members.size();
+    }
+    return total == 0 ? 0 : (double) errors / total * 100;
+  }
+
+  public static double WCSS(Cluster[] clusters) {
+    double sum = 0.0;
+
+    for (var c : clusters) {
+      double wcs = 0;
+      for (var m : c.members) {
+        double dist = m.getDist(c.centroid);
+        wcs += dist * dist;
+      }
+      sum += wcs;
+    }
+
+    return sum;
+  }
 }
